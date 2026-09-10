@@ -17,7 +17,6 @@ one price quartile can take. README.md sets out the reasoning for each piece.
 Usage:
 
     python rank_feed.py                    # print and write the top 20
-    python rank_feed.py --diagnostics      # fitted parameters + naive baselines
     python rank_feed.py --top 50 -o feed.csv
 
 Requires: pandas, numpy.
@@ -112,7 +111,7 @@ class Config:
 def load_listings(path: str, cfg: Config) -> pd.DataFrame:
     """Read the snapshot and repair or flag anything that would break the maths.
 
-    Changes are recorded on the frame and printed by --diagnostics rather than
+    Changes are recorded on the frame and reported with the slate rather than
     being applied silently.
     """
     df = pd.read_csv(path)
@@ -470,80 +469,10 @@ def print_slate(slate: pd.DataFrame, df: pd.DataFrame, cfg: Config) -> None:
         )
     )
 
-
-def print_diagnostics(df: pd.DataFrame, slate: pd.DataFrame, cfg: Config) -> None:
-    rpi = df.attrs["revenue_per_impression"]
-    print("\n" + "-" * 142)
-    print("DIAGNOSTICS")
-    print("-" * 142)
-    print("listings scored: %d" % len(df))
+    # Repairs made at load time are surfaced here so the numbers above are never
+    # the product of a silent fix.
     for note in df.attrs.get("load_notes", []):
-        print("  data note: %s" % note)
-
-    print(
-        "\nconversion prior: revenue per impression R = $%.4f, so prior cvr = R / price"
-        % rpi
-    )
-    print(
-        "  -> before seeing its own traffic, a listing is expected to convert at "
-        "%.1f%% at $5, %.2f%% at $50, %.2f%% at $250"
-        % (100 * rpi / 5, 100 * rpi / 50, 100 * rpi / 250)
-    )
-    print(
-        "\nfitted shrinkage: alpha0 = %.2f pseudo-purchases, worth %.0f impressions for the "
-        "cheapest listing and %.0f for the dearest"
-        % (df.attrs["alpha0"], df["prior_views"].min(), df["prior_views"].max())
-    )
-    print("platform prior rating: %.2f" % df.attrs["prior_rating"])
-    print(
-        "under-measured listings: %d (%.0f%%)"
-        % (int(df["is_under_measured"].sum()), 100 * df["is_under_measured"].mean())
-    )
-    print(
-        "blocked by the quality floor (<%.1f adjusted): %d"
-        % (cfg.hard_quality_floor, int(df["below_quality_floor"].sum()))
-    )
-
-    # What the slate composition rules actually cost, in the platform's own units.
-    unconstrained = df[df["eligible"]].head(len(slate))
-    loss = 1 - slate["exp_revenue_per_impression"].mean() / max(
-        unconstrained["exp_revenue_per_impression"].mean(), 1e-9
-    )
-    print(
-        "\ncost of the exploration budget + price diversity cap: %.1f%% of expected revenue "
-        "per impression vs. the unconstrained top %d" % (100 * loss, len(slate))
-    )
-
-    print("\nWhat the naive rankers would have promoted, and whether we kept it:")
-    naive = {
-        "most purchases": df.nlargest(3, "historical_purchases"),
-        "highest raw CVR": df[df["historical_views"] > 0].nlargest(3, "raw_cvr"),
-        "highest rating": df.nlargest(3, "average_rating"),
-        "highest price": df.nlargest(3, "price"),
-    }
-    chosen = set(slate["item_id"])
-    for name, rows in naive.items():
-        for _, r in rows.iterrows():
-            mark = "kept" if r["item_id"] in chosen else "cut "
-            raw = r["raw_cvr"] * 100 if pd.notna(r["raw_cvr"]) else 0.0
-            print(
-                "  [%s] %-15s %s  $%7.2f  %6d views  %5d purch  raw %5.1f%% -> adj %5.2f%%  "
-                "rating %.1f (%4d rev) -> %.2f  score %.2f"
-                % (
-                    mark,
-                    name,
-                    r["item_id"],
-                    r["price"],
-                    int(r["historical_views"]),
-                    int(r["historical_purchases"]),
-                    raw,
-                    r["cvr"] * 100,
-                    r["average_rating"],
-                    int(r["review_count"]),
-                    r["rating"],
-                    r["score"],
-                )
-            )
+        print("data note: %s" % note)
 
 
 def main(argv=None) -> int:
@@ -553,7 +482,6 @@ def main(argv=None) -> int:
     p.add_argument("-i", "--input", default="marketplace_dataset.csv", help="path to the listings CSV")
     p.add_argument("-o", "--output", default="top20_homepage_feed.csv", help="where to write the ranked slate")
     p.add_argument("-n", "--top", type=int, default=20, help="how many listings to return")
-    p.add_argument("--diagnostics", action="store_true", help="show fitted parameters and baseline comparisons")
     p.add_argument("--quality-gamma", type=float, default=None, help="override the quality exponent")
     p.add_argument("--exploration-share", type=float, default=None, help="override the exploration slot share")
     p.add_argument("--price-cap-share", type=float, default=None, help="override the max share of the feed per price quartile")
@@ -584,8 +512,6 @@ def main(argv=None) -> int:
     slate = build_slate(scored, cfg, top_n=args.top)
 
     print_slate(slate, scored, cfg)
-    if args.diagnostics:
-        print_diagnostics(scored, slate, cfg)
 
     # The ranking is already printed above, so a locked output file (one open in
     # Excel, for example) should not lose the run.

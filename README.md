@@ -6,7 +6,6 @@ who has not searched for anything, and writes `top20_homepage_feed.csv`.
 ```bash
 pip install pandas numpy
 python rank_feed.py                 # print + write the top 20
-python rank_feed.py --diagnostics   # fitted parameters + what naive rankers would have picked
 ```
 
 The sections below cover how I framed the problem, what I found in the data, where every
