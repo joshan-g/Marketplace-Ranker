@@ -389,7 +389,5 @@ dollars per impression, so arguments about `gamma` or the exploration share happ
 product review rather than inside the model.
 
 What I would do next, in order of value: log timestamps and decay old activity; add category
-so real diversity becomes possible; replace the fixed exploration budget with Thompson
-sampling from the Beta posterior the script already computes, which is about ten lines and
-self-tuning; calibrate `gamma` against a retention holdout; then personalise, leaving this as
+so real diversity becomes possible; then personalise, leaving this as
 the cold-start fallback.
