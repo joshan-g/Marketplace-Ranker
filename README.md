@@ -1,27 +1,11 @@
 # Default Homepage Feed: Ranking 2,000 Marketplace Listings
 
-`rank_feed.py` reads `marketplace_dataset.csv`, prints the top 20 listings to show a user
-who has not searched for anything, and writes `top20_homepage_feed.csv`.
+`rank_feed.py` reads `marketplace_dataset.csv`, prints the top 20 listings to show a user and writes `top20_homepage_feed.csv`.
 
 ```bash
 pip install pandas numpy
 python rank_feed.py                 # print + write the top 20
 ```
-
-The sections below cover how I framed the problem, what I found in the data, where every
-number in the formula comes from, how I tested it, and what I would do next.
-
-1. The objective
-2. What is in the data
-3. Three findings
-4. Building the formula
-5. Every constant and where it came from
-6. Worked examples
-7. How I tested it
-8. Tradeoffs
-9. Assumptions
-10. Limitations
-11. Why this helps the platform
 
 ## 1. The objective
 
@@ -37,10 +21,10 @@ not all revenue is equally good for the platform.
 The formula:
 
 ```
-score = price * cvr_hat * quality_multiplier * freshness_multiplier
+score = price * cvr * quality_multiplier * freshness_multiplier
 ```
 
-`price * cvr_hat` is the expected revenue from showing the listing once. The quality
+`price * cvr` is the expected revenue from showing the listing once. The quality
 multiplier discounts revenue from listings people rate badly. The freshness multiplier is a
 small boost for new listings.
 
@@ -153,7 +137,7 @@ correction. I kept mine small and labelled it as such.
 
 ## 4. Building the formula
 
-### Term 1: `price * cvr_hat`, expected revenue per impression
+### Term 1: `price * cvr`, expected revenue per impression
 
 The raw conversion rate is a maximum-likelihood estimate on samples ranging from 0 to 159,787
 impressions, so `ITEM_0284`'s 100% is worthless. The fix is empirical Bayes: shrink each
@@ -176,14 +160,14 @@ prior is Beta(alpha, beta), so the posterior is Beta(alpha + purchases, beta + v
 purchases) with mean:
 
 ```
-cvr_hat = (purchases + alpha) / (views + alpha + beta)
+cvr = (purchases + alpha) / (views + alpha + beta)
 ```
 
 I anchor the prior by setting `alpha = alpha0`, a fixed pseudo-purchase count, with mean `p`.
 That forces `beta = alpha0 * (1 - p) / p`, so `alpha + beta = alpha0 / p`. Substituting:
 
 ```
-cvr_hat = (purchases + alpha0) / (views + alpha0/p)
+cvr = (purchases + alpha0) / (views + alpha0/p)
 ```
 
 Fixing a pseudo-purchase count rather than a pseudo-view count is the part worth
@@ -225,7 +209,7 @@ its total variance inflated tenfold by a single outlier. In fairness the mean wo
 First a Bayesian average rating, so that one glowing review does not outrank 200:
 
 ```
-rating_hat = (rating * reviews + 4.1752 * 10) / (reviews + 10)
+rating_adj = (rating * reviews + 4.1752 * 10) / (reviews + 10)
 ```
 
 `4.1752` is the mean rating of the 1,707 listings that have at least one review. The 293
@@ -235,7 +219,7 @@ reviews yet.
 Then the multiplier:
 
 ```
-quality_multiplier = (rating_hat / 4.1752) ** gamma,     gamma = 2
+quality_multiplier = (rating_adj / 4.1752) ** gamma,     gamma = 2
 ```
 
 This term is deliberately not fitted, and I want to be explicit about why. In this snapshot
@@ -311,9 +295,9 @@ product review rather than inside the model.
 ```
 prior p     = 1.444593 / 220.00            = 0.006566    0.66% expected at this price
 prior weight= 4.10 / 0.006566              = 624 impressions
-cvr_hat     = (450 + 4.10) / (15000 + 624) = 0.029064    raw was 0.030000, barely moved
+cvr     = (450 + 4.10) / (15000 + 624) = 0.029064    raw was 0.030000, barely moved
 revenue/imp = 220.00 * 0.029064            = $6.3940     4.4x the $1.44 baseline
-rating_hat  = (4.6*12 + 4.1752*10)/(12+10) = 4.4069      12 reviews, pulled toward 4.18
+rating_adj  = (4.6*12 + 4.1752*10)/(12+10) = 4.4069      12 reviews, pulled toward 4.18
 quality     = (4.4069 / 4.1752)**2         = 1.1141
 freshness   = 1 + 0.15 * exp(-400/30)      = 1.0000      400 days old, no boost
 score       = 6.3940 * 1.1141 * 1.0000     = 7.1234
@@ -326,9 +310,9 @@ because it earns 4.4 times what a $220 listing normally earns.
 from 1,200 reviews.
 
 ```
-cvr_hat     = (16000 + 4.10) / (50000 + 42.5) = 0.319810   32%, essentially unshrunk
+cvr     = (16000 + 4.10) / (50000 + 42.5) = 0.319810   32%, essentially unshrunk
 revenue/imp = 14.99 * 0.319810                = $4.7940    3.5x the catalogue norm
-rating_hat  = (2.1*1200 + 4.1752*10)/1210     = 2.1172     1,200 reviews, the prior cannot save it
+rating_adj  = (2.1*1200 + 4.1752*10)/1210     = 2.1172     1,200 reviews, the prior cannot save it
 quality     = (2.1172 / 4.1752)**2            = 0.2571     a 74% cut
 score       = 4.7940 * 0.2571                 = 1.2327     1103rd
 eligible?   no, 2.1172 is below the 3.0 floor
@@ -338,7 +322,7 @@ eligible?   no, 2.1172 is below the 3.0 floor
 
 ```
 prior weight = 4.10 / (1.444593/25) = 71 impressions
-cvr_hat      = (1 + 4.10) / (1 + 71) = 0.0709    the 100% becomes 7.1%
+cvr      = (1 + 4.10) / (1 + 71) = 0.0709    the 100% becomes 7.1%
 ```
 
 One impression against a 71-impression prior, so the prior wins 98 to 2. Shrinkage on its own
@@ -348,7 +332,7 @@ moves this listing from apparent best on the platform to 378th.
 days old.
 
 ```
-cvr_hat   = (5 + 4.10) / (32 + 40.3) = 0.125861   raw 0.156250, shrunk toward 10.2%
+cvr = (5 + 4.10) / (32 + 40.3) = 0.125861   raw 0.156250, shrunk toward 10.2%
 freshness = 1 + 0.15 * exp(-9/30)    = 1.1111
 score     = 2.0402                                354th overall
 ```
@@ -356,41 +340,7 @@ score     = 2.0402                                354th overall
 354th on score, but it reaches the feed through one of the three reserved exploration
 slots.
 
-## 7. How I tested it
-
-Comparing rankers on the data you fitted them to rewards whoever overfits hardest. So instead
-I split each listing's impressions in half at random, with purchases split
-hypergeometrically, ranked on one half, and measured what those 20 listings actually earned
-on the other half. 300 random splits.
-
-| Variant | Realised revenue per impression | Result |
-| --- | --- | --- |
-| This model | $2.818 | |
-| Fitted price curve instead of `R/price` | $2.810 | No gain, so I dropped the curve |
-| Wilson lower bound | $2.788, -0.8% | A viable simpler alternative |
-| No shrinkage at all | $2.651, -6% | Real but modest, still needed to stop 1-view listings |
-| Naive weighted z-score blend | $2.130, -24% | The obvious approach is much worse |
-| No price conditioning | $2.092, -26% | The load-bearing idea |
-| Fixed 100 pseudo-views | $2.025, -28% | Worse than no shrinkage; the pseudo-purchase form matters |
-
-Two things came out of this. The fitted curve buys nothing over `R/price`, so the simpler
-version is what shipped. Price conditioning and the pseudo-purchase parameterisation are worth
-about 26% and 28%, and since they are really the same insight, that consistency is
-reassuring.
-
-I tested the quality term separately, paired across 400 splits:
-
-```
-gamma = 0:  $2.809 per impression, slate rating 4.23
-gamma = 2:  $2.818 per impression, slate rating 4.59
-paired difference: +$0.009   (95% CI +0.002 to +0.016)
-```
-
-I expected protecting trust to cost revenue. It does not. Well-reviewed listings carry more
-data, so tilting toward them acts as a mild regulariser against the winner's curse, and it
-pays for itself.
-
-## 8. Tradeoffs
+## 7. Tradeoffs
 
 | Decision | Cost | Benefit |
 | --- | --- | --- |
@@ -404,7 +354,7 @@ Both product constraints together cost 1.3% of expected revenue per impression. 
 cheap for the same structural reason: revenue per impression is nearly flat across the price
 ladder, so there are always well-rated alternatives earning near the top of the range.
 
-## 9. Assumptions
+## 8. Assumptions
 
 1. `average_rating = 0.0` means unrated rather than zero-star. This is the highest-impact
    assumption in the submission. If it is wrong, the treatment of all 293 new listings
@@ -420,7 +370,7 @@ ladder, so there are always well-rated alternatives earning near the top of the 
 6. All users are alike, because a user who has not searched has given us no signal. This is
    the cold-start prior that personalisation should replace.
 
-## 10. Limitations
+## 9. Limitations
 
 The top of any 2,000-item ranking is partly selected for upward noise. Shrinkage bounds this
 but does not remove it, which is why an offline ranker needs online learning alongside it
@@ -437,7 +387,7 @@ near-identical products appearing together.
 Finally, `gamma` is asserted rather than measured. Its cost is measured; its correct value is
 not.
 
-## 11. Why this helps the platform
+## 10. Why this helps the platform
 
 On the demand side, the default feed is the platform's first impression and an implicit
 endorsement of what it shows. Ranking on revenue per impression rather than historical totals
