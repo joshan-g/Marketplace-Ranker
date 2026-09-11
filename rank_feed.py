@@ -6,7 +6,7 @@ who has not searched for anything yet.
 
 Each listing is scored in expected dollars per impression:
 
-    score = price * shrunk_conversion_rate * quality_multiplier * freshness_multiplier
+    score = price * cvr * quality_multiplier * freshness_multiplier
 
 The first two factors give the expected revenue from showing the listing once.
 The quality multiplier discounts revenue from listings people rate badly, and
@@ -187,7 +187,7 @@ def fit_revenue_per_impression(df: pd.DataFrame) -> float:
     gives b = -0.895 with a weighted R^2 of 0.963. That is near enough to -1
     that I assume the two cancel exactly, which reduces the prior to a single
     number. On held-out traffic the fitted curve scored $2.810 per impression
-    against $2.818 for this version, so simplifying costs nothing.
+    against $2.811 for this version, so simplifying costs nothing.
 
     A $220 listing is therefore expected to convert at R / 220 before any of
     its own traffic is taken into account.

@@ -104,8 +104,8 @@ same. The signal is in the residual, in listings that beat the baseline for thei
 point.
 
 This is also why I could simplify. Since -0.895 is within noise of -1, I dropped the fitted
-curve and let the two cancel exactly. Section 7 shows the curve buys nothing over the
-simpler form.
+curve and let the two cancel exactly. On held-out traffic the fitted curve scored $2.810 per
+impression against $2.811 for the simpler form.
 
 ### Finding 2: below roughly 300 impressions, conversion is mostly noise
 
@@ -175,7 +175,7 @@ understanding. The prior's weight in impressions is `alpha0 / p`, so it is worth
 impressions for the cheapest listing and 1,051 for the dearest. That is the right behaviour,
 because measuring a 0.6% rate as precisely as a 29% rate genuinely takes far more traffic. A
 single "needs 100 views" threshold would be too strict at the cheap end and too lax at the
-expensive end, and the test in Section 7 shows that mistake costs 28% of realised revenue,
+expensive end, and on held-out traffic that mistake costs 28% of realised revenue,
 worse than using no shrinkage at all.
 
 **Step 3, deriving alpha0 = 4.10.** Within each price ventile the observed spread splits in
@@ -237,7 +237,8 @@ It should not, because the cost of a bad purchase does not appear in this file. 
 support load, churn and the customer who never comes back are all real and all absent from
 the snapshot. So `gamma = 2` encodes a business prior about long-term value rather than a
 statistical finding. In production I would calibrate it against a retention holdout. What I
-can defend from this data is what it costs, and Section 7 shows the answer is nothing.
+can defend from this data is what it costs. On held-out traffic it earned +$0.015 per
+impression more than `gamma = 0` (95% CI +0.007 to +0.022), so the answer is nothing.
 
 There is also a hard floor. Any listing whose shrunk rating falls below 3.0 is excluded
 regardless of revenue. It is applied to the shrunk rating so that one angry review cannot
@@ -277,12 +278,12 @@ Chosen by judgement:
 
 | Value | Where | Reasoning |
 | --- | --- | --- |
-| `gamma = 2` | quality exponent | The revenue-versus-trust dial. Costs nothing held out (Section 7) and lifts slate rating from 4.23 to 4.59. Should be calibrated on retention |
+| `gamma = 2` | quality exponent | The revenue-versus-trust dial. Costs nothing held out and lifts slate rating from 4.23 to 4.59. Should be calibrated on retention |
 | `10` | rating pseudo-reviews | Median listing has 6 reviews, 75th percentile has 18, so 10 puts a typical listing about halfway between its own rating and the platform mean |
 | `3.0` | hard floor | About 1.2 stars below the platform mean. A backstop, not a fine gradation |
 | `0.15`, `tau = 30d` | freshness | Kept small and visibly bounded, since age has no quality signal |
 | `15%`, 3 slots | exploration | A slot budget caps the cost up front; a score bonus would not |
-| `40%`, 8 slots | price diversity cap | Nearly free, for the reason in Section 8 |
+| `40%`, 8 slots | price diversity cap | Nearly free, for the reason in Section 7 |
 
 All six sit in one `Config` block at the top of the script, so these arguments can happen in a
 product review rather than inside the model.
@@ -293,14 +294,14 @@ product review rather than inside the model.
 400 days old.
 
 ```
-prior p     = 1.444593 / 220.00            = 0.006566    0.66% expected at this price
-prior weight= 4.10 / 0.006566              = 624 impressions
-cvr     = (450 + 4.10) / (15000 + 624) = 0.029064    raw was 0.030000, barely moved
-revenue/imp = 220.00 * 0.029064            = $6.3940     4.4x the $1.44 baseline
-rating_adj  = (4.6*12 + 4.1752*10)/(12+10) = 4.4069      12 reviews, pulled toward 4.18
-quality     = (4.4069 / 4.1752)**2         = 1.1141
-freshness   = 1 + 0.15 * exp(-400/30)      = 1.0000      400 days old, no boost
-score       = 6.3940 * 1.1141 * 1.0000     = 7.1234
+prior p      = 1.444593 / 220.00            = 0.006566   0.66% expected at this price
+prior weight = 4.10 / 0.006566              = 624 impressions
+cvr          = (450 + 4.10) / (15000 + 624) = 0.029064   raw was 0.030000, barely moved
+revenue/imp  = 220.00 * 0.029064            = $6.3940    4.4x the $1.44 baseline
+rating_adj   = (4.6*12 + 4.1752*10)/(12+10)  = 4.4069     12 reviews, pulled toward 4.18
+quality      = (4.4069 / 4.1752)**2          = 1.1141
+freshness    = 1 + 0.15 * exp(-400/30)       = 1.0000     400 days old, no boost
+score        = 6.3940 * 1.1141 * 1.0000      = 7.1234
 ```
 
 15,000 impressions against a 624-impression prior, so its own data dominates. It ranks first
@@ -310,19 +311,19 @@ because it earns 4.4 times what a $220 listing normally earns.
 from 1,200 reviews.
 
 ```
-cvr     = (16000 + 4.10) / (50000 + 42.5) = 0.319810   32%, essentially unshrunk
-revenue/imp = 14.99 * 0.319810                = $4.7940    3.5x the catalogue norm
-rating_adj  = (2.1*1200 + 4.1752*10)/1210     = 2.1172     1,200 reviews, the prior cannot save it
-quality     = (2.1172 / 4.1752)**2            = 0.2571     a 74% cut
-score       = 4.7940 * 0.2571                 = 1.2327     1103rd
-eligible?   no, 2.1172 is below the 3.0 floor
+cvr          = (16000 + 4.10) / (50000 + 42.5) = 0.319810   32%, essentially unshrunk
+revenue/imp  = 14.99 * 0.319810                 = $4.7940    3.5x the catalogue norm
+rating_adj   = (2.1*1200 + 4.1752*10)/1210      = 2.1172     1,200 reviews, the prior cannot save it
+quality      = (2.1172 / 4.1752)**2             = 0.2571     a 74% cut
+score        = 4.7940 * 0.2571                  = 1.2327     1103rd
+eligible?    no, 2.1172 is below the 3.0 floor
 ```
 
 `ITEM_0284`, rank 378. $25.00, one impression, one purchase, unrated, 5 days old.
 
 ```
 prior weight = 4.10 / (1.444593/25) = 71 impressions
-cvr      = (1 + 4.10) / (1 + 71) = 0.0709    the 100% becomes 7.1%
+cvr          = (1 + 4.10) / (1 + 71)  = 0.0709    the 100% becomes 7.1%
 ```
 
 One impression against a 71-impression prior, so the prior wins 98 to 2. Shrinkage on its own
@@ -332,9 +333,9 @@ moves this listing from apparent best on the platform to 378th.
 days old.
 
 ```
-cvr = (5 + 4.10) / (32 + 40.3) = 0.125861   raw 0.156250, shrunk toward 10.2%
-freshness = 1 + 0.15 * exp(-9/30)    = 1.1111
-score     = 2.0402                                354th overall
+cvr          = (5 + 4.10) / (32 + 40.3)  = 0.125861   raw 0.156250, shrunk toward 10.2%
+freshness    = 1 + 0.15 * exp(-9/30)     = 1.1111
+score        = 2.0402                               354th overall
 ```
 
 354th on score, but it reaches the feed through one of the three reserved exploration
@@ -344,7 +345,7 @@ slots.
 
 | Decision | Cost | Benefit |
 | --- | --- | --- |
-| `gamma = 2` instead of 0 | None measurable, +$0.009 held out with the CI excluding zero | Slate rating 4.23 to 4.59, and the 2.1-star bestseller stays off the homepage |
+| `gamma = 2` instead of 0 | None measurable, +$0.015 held out with the CI excluding zero | Slate rating 4.23 to 4.59, and the 2.1-star bestseller stays off the homepage |
 | 3 of 20 slots for exploration | Part of the 1.3% below | New and neglected supply gets a guaranteed path to first impressions |
 | At most 8 of 20 per price quartile | 1.3% combined | A shelf spanning $14 to $220 rather than one clustered at the top |
 | Posterior mean rather than a lower bound | Some exposure to the winner's curse | The correct estimator when expected revenue is the objective |
@@ -374,8 +375,9 @@ ladder, so there are always well-rated alternatives earning near the top of the 
 
 The top of any 2,000-item ranking is partly selected for upward noise. Shrinkage bounds this
 but does not remove it, which is why an offline ranker needs online learning alongside it
-rather than being frozen. The split-half test also halves the traffic available to each
-listing, so it probably overstates the value of shrinkage relative to the full data.
+rather than being frozen. The split-half tests behind the held-out figures also halve the
+traffic available to each listing, so they probably overstate the value of shrinkage
+relative to the full data.
 
 The slate skews mature, with a median age of 655 days. That is the expected result of capping
 exploration at 15%, and it is the number to raise if seller retention turns out to be the
