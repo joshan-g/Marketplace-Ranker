@@ -371,25 +371,8 @@ ladder, so there are always well-rated alternatives earning near the top of the 
 6. All users are alike, because a user who has not searched has given us no signal. This is
    the cold-start prior that personalisation should replace.
 
-## 9. Limitations
 
-The top of any 2,000-item ranking is partly selected for upward noise. Shrinkage bounds this
-but does not remove it, which is why an offline ranker needs online learning alongside it
-rather than being frozen. The split-half tests behind the held-out figures also halve the
-traffic available to each listing, so they probably overstate the value of shrinkage
-relative to the full data.
-
-The slate skews mature, with a median age of 655 days. That is the expected result of capping
-exploration at 15%, and it is the number to raise if seller retention turns out to be the
-binding constraint.
-
-There is no diversity beyond price. With no category column, nothing stops twenty
-near-identical products appearing together.
-
-Finally, `gamma` is asserted rather than measured. Its cost is measured; its correct value is
-not.
-
-## 10. Why this helps the platform
+## 9. Why this helps the platform
 
 On the demand side, the default feed is the platform's first impression and an implicit
 endorsement of what it shows. Ranking on revenue per impression rather than historical totals
